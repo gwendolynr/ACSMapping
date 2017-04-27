@@ -1,0 +1,111 @@
+---
+title: "ACS Mapping"
+author: "Gwendolyn Reynolds"
+date: "April 27, 2017"
+output:
+  html_document: default
+  html_notebook: default
+---
+
+I decided I wanted to learn how to do geospatial mapping using census data. I'm playing with making maps using the American Community Survey. First up, I map the percent of households with children who received SNAP/Food Stamps. I use [this](http://zevross.com/blog/2015/10/14/manipulating-and-mapping-us-census-data-in-r-using-the-acs-tigris-and-leaflet-packages-3/) tutorial plus inspo from Jon Zadra's pretty Oregon graphs and analysis.  
+
+Source: American Community Survey Table B22002, "RECEIPT OF FOOD STAMPS/SNAP IN THE PAST 12 MONTHS BY POVERTY STATUS IN THE PAST 12 MONTHS FOR HOUSEHOLDS," 2011-2015 American Community Survey 5-Year Estimates
+
+
+```{r setup, echo=FALSE, message=FALSE, warning=FALSE}
+
+library(tigris)
+library(acs)
+library(stringr)
+library(dplyr)
+library(leaflet)
+library(ggplot2)
+library(tidyr)
+
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(cache = FALSE)
+knitr::opts_chunk$set(dpi = 150)
+knitr::opts_chunk$set(message = F) #Use this to suppress all messages from chunks for finalized report
+knitr::opts_chunk$set(warning = T) #Use this to suppress all warnings from chunks for finalized report
+
+# Sorenson Impact colors we use in ggplot
+SI_design <- list(color_1 = "#005060", color_medium = "#1A818F", color_light = "#25AFC1", color_grey = "#58585A", color_light_grey = "E6E7E8")
+
+# This will fill bar colors with Sorenson Impact colors and default to theme_minimal
+update_geom_defaults("bar", list(fill = SI_design$color_1))
+theme_set(theme_minimal())
+
+```
+
+```{r get spatial dataf, echo=FALSE, message=FALSE, warning=FALSE}
+
+##must find the fips number for the counties i am including. i want to include every Utah county
+
+counties <- c(001, 003, 005, 007, 009, 011, 013, 015, 017, 019, 021, 023, 025, 027, 029, 031, 033, 035, 037, 039, 041, 043, 045, 047, 049, 051, 053, 055, 057)
+tracts <- tracts(state = 'UT', county = c(001, 003, 005, 007, 009, 011, 013, 015, 017, 019, 021, 023, 025, 027, 029, 031, 033, 035, 037, 039, 041, 043, 045, 047, 049, 051, 053, 055, 057), cb=TRUE)
+
+```
+
+```{r get tabular data, echo=FALSE, message=FALSE, warning=FALSE}
+
+# install api key using key you get from census website
+api.key.install(key="0cdac4dbbd32b4e4874b79ce6e8fee07d12a7b3a")
+
+#create a geographic set to grab tabular data 
+geo <- geo.make(state=c("UT"), 
+                county=c(001, 003, 005, 007, 009, 011, 013, 015, 017, 019, 021, 023, 025, 027, 029, 031, 033, 035, 037, 039, 041, 043, 045, 047, 049, 051, 053, 055, 057), tract="*") 
+
+#update endyear to 2015
+
+poverty <- acs.fetch(endyear = 2015, span = 5, geography = geo, 
+                     table.number = "B22002", col.names = "pretty")
+
+#names(attributes(poverty))
+# [1] "endyear"        "span"           "acs.units"      "currency.year"  "modified"       "geography"      "acs.colnames"  
+# [8] "estimate"       "standard.error" "class"    
+
+#attr(poverty, "acs.colnames")
+
+#convert to data.frame for merging
+poverty_df <- data.frame(paste0(str_pad(poverty@geography$state, 2, "left", pad="0"), 
+                                str_pad(poverty@geography$county, 3, "left", pad = "0"), 
+                                str_pad(poverty@geography$tract, 6, "left", pad = "0")), 
+                         poverty@estimate[,c("Receipt of Food Stamps/SNAP by Presence of Children Under 18 Years by Household Type for Households: Household did not receive Food Stamps/SNAP in the past 12 months:", "Receipt of Food Stamps/SNAP by Presence of Children Under 18 Years by Household Type for Households: Household received Food Stamps/SNAP in the past 12 months:", "Receipt of Food Stamps/SNAP by Presence of Children Under 18 Years by Household Type for Households: Household received Food Stamps/SNAP in the past 12 months: With children under 18 years:", "Receipt of Food Stamps/SNAP by Presence of Children Under 18 Years by Household Type for Households: Household received Food Stamps/SNAP in the past 12 months: With children under 18 years: Married-couple family", "Receipt of Food Stamps/SNAP by Presence of Children Under 18 Years by Household Type for Households: Household received Food Stamps/SNAP in the past 12 months: With children under 18 years: Other family:","Receipt of Food Stamps/SNAP by Presence of Children Under 18 Years by Household Type for Households: Household received Food Stamps/SNAP in the past 12 months: With children under 18 years: Other family: Male householder, no wife present", "Receipt of Food Stamps/SNAP by Presence of Children Under 18 Years by Household Type for Households: Household received Food Stamps/SNAP in the past 12 months: With children under 18 years: Other family: Female householder, no husband present", "Receipt of Food Stamps/SNAP by Presence of Children Under 18 Years by Household Type for Households: Household received Food Stamps/SNAP in the past 12 months: With children under 18 years: Nonfamily households")], 
+                         stringsAsFactors = FALSE)
+
+poverty_df <- select(poverty_df, 1:9)
+rownames(poverty_df)<-1:nrow(poverty_df)
+names(poverty_df)<-c("GEOID", "didnottotal", "didtotal", "wkids", "married", "otherfam", "maleonly", "femaleonly", "nonfam")
+poverty_df$percent <- 100*(poverty_df$wkids/(poverty_df$didnottotal+poverty_df$didtotal))
+
+##time to merge
+
+poverty_merged<- geo_join(tracts, poverty_df, "GEOID", "GEOID")
+# there are some tracts with no land that we should exclude
+poverty_merged <- poverty_merged[poverty_merged$ALAND>0,]
+
+##let's see if this works
+popup <- paste0("GEOID: ", poverty_merged$GEOID, "<br>", "Percent of Households w/ Children using SNAP/Food Stamps ", round(poverty_merged$percent,2))
+pal <- colorNumeric(
+  palette = "YlGnBu",
+  domain = poverty_merged$percent
+)
+
+map3<-leaflet() %>%
+  addProviderTiles("CartoDB.Positron") %>%
+  addPolygons(data = poverty_merged, 
+              fillColor = ~pal(percent), 
+              color = "#b2aeae", # you need to use hex colors
+              fillOpacity = 0.7, 
+              weight = 1, 
+              smoothFactor = 0.2,
+              popup = popup) %>%
+  addLegend(pal = pal, 
+            values = poverty_merged$percent, 
+            position = "bottomright", 
+            title = "Percent of Households<br>w/ Children using SNAP/Food Stamps",
+            labFormat = labelFormat(suffix = "%")) 
+map3
+
+```
+
