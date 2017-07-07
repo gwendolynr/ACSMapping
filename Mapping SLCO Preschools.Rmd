@@ -37,7 +37,7 @@ theme_set(theme_minimal())
 ##must find the fips number for the counties i am including. i only want to include sl county and i want to map by school district 
 
 counties <- c(035)
-schooldistrictsunified <- school_districts(state = 'UT', type = "unified")
+schooldistrictunified <- school_districts(state = 'UT', type = "unified")
 ```
 
 
@@ -64,8 +64,8 @@ attr(population, "acs.colnames")
 
 #convert to data.frame for merging
 pop_df <- data.frame(paste0(str_pad(population@geography$state, 2, "left", pad="0"), 
-                                str_pad(population@geography$county, 3, "left", pad = "0"), 
-                                str_pad(population@geography$schooldistrictsunified, 6, "left", pad = "0")), 
+                                #str_pad(population@geography$county, 3, "left", pad = "0"), 
+                                str_pad(population@geography$schooldistrictunified, 5, "left", pad = "0")), 
                          population@estimate[,c("Total Population: Total")], 
                          stringsAsFactors = FALSE)
 
@@ -76,12 +76,14 @@ names(pop_df)<-c("GEOID", "totalpop")
 
 ##time to merge
 
-pop_merged<- geo_join(schooldistrictsunified, pop_df, "GEOID", "GEOID", how="left")
+pop_merged<- geo_join(schooldistrictunified, pop_df, "GEOID", "GEOID", how="inner")
+# we need to only include the salt lake county ids
+pop_merged <- pop_merged[pop_merged$GEOID %in% c(4900870, 4900420, 4900360, 4900142, 4900600),]
 # there are some tracts with no land that we should exclude
-#pop_merged <- pop_merged[pop_merged$GEOID==4900030,]
+# pop_merged <- pop_merged[pop_merged$ALAND>0,]
 
-##let's see if this works
-popup <- paste0("GEOID: ", pop_merged$GEOID, "<br>", "Total Population", round(pop_merged$totalpop,2))
+##pop up makes the box when you click on a specific region, so you can label it with a name or geoid, or something else in your data
+popup <- paste0("<b>", pop_merged$NAME, "</b><br>", "Total Population ", prettyNum(round(pop_merged$totalpop,2), big.mark=","))
 pal <- colorNumeric(
   palette = "YlGnBu",
   domain = pop_merged$totalpop
@@ -100,7 +102,7 @@ map3<-leaflet() %>%
             values = pop_merged$totalpop, 
             position = "bottomright", 
             title = "Total Population"#,
-           # labFormat = labelFormat(suffix = "%")
+            #labFormat = labelFormat(prefix = " ")
            ) 
 map3
 
