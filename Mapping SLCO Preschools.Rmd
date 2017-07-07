@@ -1,0 +1,109 @@
+---
+title: "Mapping SLCO Preschools"
+author: "Gwendolyn Reynolds "
+date: "7/6/2017"
+output: html_document
+---
+
+```{r setup, echo=FALSE, message=FALSE, warning=FALSE}
+
+library(tigris)
+library(acs)
+library(stringr)
+library(dplyr)
+library(leaflet)
+library(ggplot2)
+library(tidyr)
+
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(cache = FALSE)
+knitr::opts_chunk$set(dpi = 150)
+knitr::opts_chunk$set(message = F) #Use this to suppress all messages from chunks for finalized report
+knitr::opts_chunk$set(warning = T) #Use this to suppress all warnings from chunks for finalized report
+
+# Sorenson Impact colors we use in ggplot
+SI_design <- list(color_1 = "#005060", color_medium = "#1A818F", color_light = "#25AFC1", color_grey = "#58585A", color_light_grey = "E6E7E8")
+
+# This will fill bar colors with Sorenson Impact colors and default to theme_minimal
+update_geom_defaults("bar", list(fill = SI_design$color_1))
+theme_set(theme_minimal())
+
+```
+
+
+
+```{r}
+
+##must find the fips number for the counties i am including. i only want to include sl county and i want to map by school district 
+
+counties <- c(035)
+schooldistrictsunified <- school_districts(state = 'UT', type = "unified")
+```
+
+
+
+```{r get tabular data, echo=FALSE, message=FALSE, warning=FALSE}
+
+# install api key using key you get from census website
+api.key.install(key="0cdac4dbbd32b4e4874b79ce6e8fee07d12a7b3a")
+
+#create a geographic set to grab tabular data 
+geo <- geo.make(state=c("UT"), 
+                school.district.unified ="*") 
+
+#update endyear to 2015
+
+population <- acs.fetch(endyear = 2015, span = 5, geography = geo, 
+                     table.number = "B01003", col.names = "pretty")
+
+names(attributes(population))
+# [1] "endyear"        "span"           "acs.units"      "currency.year"  "modified"       "geography"      "acs.colnames"  
+# [8] "estimate"       "standard.error" "class"    
+
+attr(population, "acs.colnames")
+
+#convert to data.frame for merging
+pop_df <- data.frame(paste0(str_pad(population@geography$state, 2, "left", pad="0"), 
+                                str_pad(population@geography$county, 3, "left", pad = "0"), 
+                                str_pad(population@geography$schooldistrictsunified, 6, "left", pad = "0")), 
+                         population@estimate[,c("Total Population: Total")], 
+                         stringsAsFactors = FALSE)
+
+pop_df <- select(pop_df, 1:2)
+rownames(pop_df)<-1:nrow(pop_df)
+names(pop_df)<-c("GEOID", "totalpop")
+#pop_df$percent <- 100*(pop_df$wkids/(poverty_df$didnottotal+poverty_df$didtotal))
+
+##time to merge
+
+pop_merged<- geo_join(schooldistrictsunified, pop_df, "GEOID", "GEOID", how="left")
+# there are some tracts with no land that we should exclude
+#pop_merged <- pop_merged[pop_merged$GEOID==4900030,]
+
+##let's see if this works
+popup <- paste0("GEOID: ", pop_merged$GEOID, "<br>", "Total Population", round(pop_merged$totalpop,2))
+pal <- colorNumeric(
+  palette = "YlGnBu",
+  domain = pop_merged$totalpop
+)
+
+map3<-leaflet() %>%
+  addProviderTiles("CartoDB.Positron") %>%
+  addPolygons(data = pop_merged, 
+              fillColor = ~pal(totalpop), 
+              color = "#b2aeae", # you need to use hex colors
+              fillOpacity = 0.7, 
+              weight = 1, 
+              smoothFactor = 0.2,
+              popup = popup) %>%
+  addLegend(pal = pal, 
+            values = pop_merged$totalpop, 
+            position = "bottomright", 
+            title = "Total Population"#,
+           # labFormat = labelFormat(suffix = "%")
+           ) 
+map3
+
+```
+
+
