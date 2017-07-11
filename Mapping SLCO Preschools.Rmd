@@ -741,7 +741,7 @@ map12
 
 ```
 
-```{r, echo=FALSE}
+```{r married families, echo=FALSE}
 
 single <- acs.fetch(endyear = 2015, span = 1, geography = geo,
                      table.number = "C11013", col.names = "pretty")
@@ -800,7 +800,7 @@ map13
 
 ```
 
-```{r, echo=FALSE}
+```{r single families, echo=FALSE}
 single_df$singlepercent <- (100* (single_df$single/single_df$totalpop))
 
 ##time to merge
@@ -836,6 +836,65 @@ map14<-leaflet(qualaddress) %>%
            )
 map14
 
+
+
+```
+
+```{r unemployment, echo=FALSE}
+
+unemployment <- acs.fetch(endyear = 2015, span = 1, geography = geo,
+                     table.number = "B23025", col.names = "pretty")
+
+#names(attributes(race))
+# [1] "endyear"        "span"           "acs.units"      "currency.year"  "modified"       "geography"      "acs.colnames"
+# [8] "estimate"       "standard.error" "class"
+
+attr(unemployment, "acs.colnames")
+
+#convert to data.frame for merging
+unemploy_df <- data.frame(paste0(str_pad(unemployment@geography$state, 2, "left", pad="0"),
+                                #str_pad(population@geography$county, 3, "left", pad = "0"),
+                                str_pad(unemployment@geography$schooldistrictunified, 5, "left", pad = "0")),
+                         unemployment@estimate[,c("Employment Status for the Population 16 Years and Over: Total:", "Employment Status for the Population 16 Years and Over: In labor force: Civilian labor force: Unemployed")],
+                         stringsAsFactors = FALSE)
+
+unemploy_df <- select(unemploy_df, 1:3)
+rownames(unemploy_df)<-1:nrow(unemploy_df)
+names(unemploy_df)<-c("GEOID", "totalpop", "unemploy")
+unemploy_df$percent <- (100* (unemploy_df$unemploy/unemploy_df$totalpop))
+
+##time to merge
+
+unemploy_merged<- geo_join(schooldistrictunified, unemploy_df, "GEOID", "GEOID", how="inner")
+# we need to only include the salt lake county ids
+unemploy_merged <- unemploy_merged[unemploy_merged$GEOID %in% c(4900870, 4900420, 4900360, 4900142, 4900600),]
+# there are some tracts with no land that we should exclude
+# pop_merged <- pop_merged[pop_merged$ALAND>0,]
+
+##pop up makes the box when you click on a specific region, so you can label it with a name or geoid, or something else in your data
+popup <- paste0("<b>", unemploy_merged$NAME, "</b><br>", "Percent Unemployed: ", prettyNum(round(unemploy_merged$percent,2), big.mark=","))
+pal <- colorNumeric(
+  palette = "YlGnBu",
+  domain = unemploy_merged$percent
+)
+
+map16<-leaflet(qualaddress) %>%
+  addMarkers(~long, ~lat, popup = ~as.character(Program.Name), label = ~as.character(Program.Name)) %>% 
+  addProviderTiles("CartoDB.Positron") %>%
+  addPolygons(data = unemploy_merged,
+              fillColor = ~pal(percent),
+              color = "#b2aeae", # you need to use hex colors
+              fillOpacity = 0.7,
+              weight = 1,
+              smoothFactor = 0.2,
+              popup = popup) %>%
+  addLegend(pal = pal,
+            values = unemploy_merged$percent,
+            position = "bottomright",
+            title = "Percent Unemployed",
+            labFormat = labelFormat(suffix = "%")
+           )
+map16
 
 
 ```
