@@ -14,6 +14,7 @@ library(dplyr)
 library(leaflet)
 library(ggplot2)
 library(tidyr)
+library(ggmap)
 
 knitr::opts_chunk$set(echo = FALSE)
 knitr::opts_chunk$set(cache = FALSE)
@@ -28,8 +29,118 @@ SI_design <- list(color_1 = "#005060", color_medium = "#1A818F", color_light = "
 update_geom_defaults("bar", list(fill = SI_design$color_1))
 theme_set(theme_minimal())
 
+setwd("~/Google Drive/SI/DataScience/")
+knitr::opts_knit$set(root.dir = '~/Google Drive/SI/DataScience/SLCPreschoolStudy2017/')
+
 ```
 
+```{r importing the addresses, echo=FALSE}
+
+origAddress <- read.csv("./raw_data/ProviderAddress.csv", stringsAsFactors = FALSE)
+
+## format the address so the streets are with the city and state
+
+
+origAddress <- origAddress %>%
+  unite(addresses, Address, City, State, sep = ", ")
+
+# Initialize the data frame
+geocoded <- data.frame(stringAsFactors = FALSE)
+
+origAddress <- origAddress %>% 
+  filter(addresses!="3472 S Hedon Place, West Valley City, Utah") %>% 
+  filter(addresses!="350 400 E, Salt Lake City, Utah") %>% 
+  filter(addresses!="6229 S Fashion Blvd Rear, Murray, Utah") %>% 
+  filter(addresses!="13671 Times Court, Herriman, Utah")
+
+# Loop through the addresses to get the latitude and longitude of each address and add it to the
+# origAddress data frame in new columns lat and lon
+for(i in 1:nrow(origAddress))
+{
+  #print("working..")
+  result <- geocode(origAddress$addresses[i], output = "latlona", source = "google")
+  origAddress$lon[i] <- as.numeric(result[1])
+  origAddress$lat[i] <- as.numeric(result[2])
+  origAddress$geoAddress[i] <- as.character(result[3])
+}
+#
+# origAddress %>%
+#   filter(is.na(lat)) %>%
+#   tally()
+#
+origAddress <- origAddress %>%
+  select(Business, addresses, Zip.Code, Care.Type, lon, lat, geoAddress)
+
+origAddress <- origAddress %>%
+  mutate(Business = ifelse(Business=="", Care.Type, Business))
+
+origAddress <- origAddress %>%
+  rename(long = lon)
+
+write.csv(origAddress, "./latlongaddress.csv")
+
+origAddress <- read.csv("./raw_data/latlongaddress.csv", stringsAsFactors = FALSE)
+
+```
+
+```{r, echo=FALSE}
+
+# qualaddress <- read.csv("./raw_data/NAEYCPreschools.csv", stringsAsFactors = FALSE)
+# 
+# qualaddress <- qualaddress %>% 
+#   unite(addresses, Address, City, State, sep = ", ")
+# 
+# geocoded <- data.frame(stringsAsFactors = FALSE)
+# 
+# qualaddress <- qualaddress %>%
+#   filter(Program.Name!="Adele and Dale Young Child Development Laboratory")
+# 
+# qualaddress <- qualaddress %>%
+#   mutate(addresses = ifelse(addresses=="Bldg. 5124 Kister Avenue, Dugway, Utah", "5124 Kister Avenue, Dugway, Utah", addresses))
+# 
+# read.csv("./raw_data/quallatlongaddress.csv", stringsAsFactors = FALSE)
+# 
+# # Loop through the addresses to get the latitude and longitude of each address and add it to the
+# # # origAddress data frame in new columns lat and lon
+#  for(i in 1:nrow(qualaddress))
+#  {
+#    #print("working..")
+#    result <- geocode(qualaddress$addresses[i], output = "latlona", source = "google")
+#   qualaddress$lon[i] <- as.numeric(result[1])
+#   qualaddress$lat[i] <- as.numeric(result[2])
+#   qualaddress$geoAddress[i] <- as.character(result[3])
+# }
+# # # 
+# origAddress %>%
+#   filter(is.na(lat)) %>%
+#   tally()
+# # # 
+# qualaddress <- qualaddress %>%
+#    select(Program.Name, addresses, lon, lat, geoAddress)
+# 
+# # qualaddress <- qualaddress %>%
+# #   mutate(Program.Name = ifelse(Business=="", Care.Type, Business))
+# 
+#  qualaddress <- qualaddress %>%
+#    rename(long = lon)
+
+# write.csv(qualaddress, "./raw_data/quallatlongaddress.csv")
+
+ qualaddress <- read.csv("./raw_data/quallatlongaddress.csv", stringsAsFactors = FALSE)
+
+
+
+```
+
+```{r}
+
+map10<-leaflet(qualaddress) %>%
+  addMarkers(~long, ~lat, popup = ~as.character(Program.Name), label = ~as.character(Program.Name)) %>% 
+  addProviderTiles("CartoDB.Positron") 
+
+map10
+
+```
 
 
 ```{r}
@@ -56,11 +167,11 @@ geo <- geo.make(state=c("UT"),
 population <- acs.fetch(endyear = 2015, span = 5, geography = geo, 
                      table.number = "B01003", col.names = "pretty")
 
-names(attributes(population))
+#names(attributes(population))
 # [1] "endyear"        "span"           "acs.units"      "currency.year"  "modified"       "geography"      "acs.colnames"  
 # [8] "estimate"       "standard.error" "class"    
 
-attr(population, "acs.colnames")
+#attr(population, "acs.colnames")
 
 #convert to data.frame for merging
 pop_df <- data.frame(paste0(str_pad(population@geography$state, 2, "left", pad="0"), 
@@ -89,7 +200,8 @@ pal <- colorNumeric(
   domain = pop_merged$totalpop
 )
 
-map3<-leaflet() %>%
+map3<-leaflet(qualaddress) %>%
+  addMarkers(~long, ~lat, popup = ~as.character(Program.Name), label = ~as.character(Program.Name)) %>% 
   addProviderTiles("CartoDB.Positron") %>%
   addPolygons(data = pop_merged, 
               fillColor = ~pal(totalpop), 
@@ -108,4 +220,622 @@ map3
 
 ```
 
+```{r population under 3, echo=FALSE, message=FALSE, warning=FALSE}
 
+
+under3 <- acs.fetch(endyear = 2015, span = 5, geography = geo, 
+                     table.number = "B09001", col.names = "pretty")
+
+#names(attributes(under3))
+# [1] "endyear"        "span"           "acs.units"      "currency.year"  "modified"       "geography"      "acs.colnames"  
+# [8] "estimate"       "standard.error" "class"    
+
+#attr(under3, "acs.colnames")
+
+#convert to data.frame for merging
+popunder5_df <- data.frame(paste0(str_pad(under3@geography$state, 2, "left", pad="0"), 
+                                #str_pad(population@geography$county, 3, "left", pad = "0"), 
+                                str_pad(under3@geography$schooldistrictunified, 5, "left", pad = "0")), 
+                         under3@estimate[,c("Population Under 18 Years by Age: Total:", "Population Under 18 Years by Age: In households:", "Population Under 18 Years by Age: In households: Under 3 years", "Population Under 18 Years by Age: In households: 3 and 4 years", "Population Under 18 Years by Age: In households: 5 years", "Population Under 18 Years by Age: In households: 6 to 8 years", "Population Under 18 Years by Age: In households: 9 to 11 years", "Population Under 18 Years by Age: In households: 12 to 14 years", "Population Under 18 Years by Age: In households: 15 to 17 years", "Population Under 18 Years by Age: In group quarters")], 
+                         stringsAsFactors = FALSE)
+
+popunder5_df <- select(popunder5_df, 1:6)
+rownames(popunder5_df)<-1:nrow(popunder5_df)
+names(popunder5_df)<-c("GEOID", "totalpopunder", "totpopunderhouse", "under3", "threeand4", "fiveyears")
+popunder5_df$totalunder5 <- (popunder5_df$under3 + popunder5_df$threeand4 + popunder5_df$fiveyears)
+
+##time to merge
+
+popunder5_merged<- geo_join(schooldistrictunified, popunder5_df, "GEOID", "GEOID", how="inner")
+# we need to only include the salt lake county ids
+popunder5_merged <- popunder5_merged[popunder5_merged$GEOID %in% c(4900870, 4900420, 4900360, 4900142, 4900600),]
+# there are some tracts with no land that we should exclude
+# pop_merged <- pop_merged[pop_merged$ALAND>0,]
+
+##pop up makes the box when you click on a specific region, so you can label it with a name or geoid, or something else in your data
+popup <- paste0("<b>", popunder5_merged$NAME, "</b><br>", "Total Population Under 5: ", prettyNum(round(popunder5_merged$totalunder5,2), big.mark=","))
+pal <- colorNumeric(
+  palette = "YlGnBu",
+  domain = popunder5_merged$totalunder5
+)
+
+map2<-leaflet(qualaddress) %>%
+  addMarkers(~long, ~lat, popup = ~as.character(Program.Name), label = ~as.character(Program.Name)) %>%   
+  addProviderTiles("CartoDB.Positron") %>%
+  addPolygons(data = popunder5_merged, 
+              fillColor = ~pal(totalunder5), 
+              color = "#b2aeae", # you need to use hex colors
+              fillOpacity = 0.7, 
+              weight = 1, 
+              smoothFactor = 0.2,
+              popup = popup) %>%
+  addLegend(pal = pal, 
+            values = popunder5_merged$totalunder5, 
+            position = "bottomright", 
+            title = "Total Population Under 5"#,
+            #labFormat = labelFormat(prefix = " ")
+           ) 
+map2
+
+```
+
+```{r percent of population under 3, echo=FALSE, message=FALSE, warning=FALSE}
+
+
+under3 <- acs.fetch(endyear = 2015, span = 5, geography = geo, 
+                     table.number = "B09001", col.names = "pretty")
+
+#names(attributes(under3))
+# [1] "endyear"        "span"           "acs.units"      "currency.year"  "modified"       "geography"      "acs.colnames"  
+# [8] "estimate"       "standard.error" "class"    
+
+#attr(under3, "acs.colnames")
+
+#convert to data.frame for merging
+popunder5_df <- data.frame(paste0(str_pad(under3@geography$state, 2, "left", pad="0"), 
+                                #str_pad(population@geography$county, 3, "left", pad = "0"), 
+                                str_pad(under3@geography$schooldistrictunified, 5, "left", pad = "0")), 
+                         under3@estimate[,c("Population Under 18 Years by Age: Total:", "Population Under 18 Years by Age: In households:", "Population Under 18 Years by Age: In households: Under 3 years", "Population Under 18 Years by Age: In households: 3 and 4 years", "Population Under 18 Years by Age: In households: 5 years", "Population Under 18 Years by Age: In households: 6 to 8 years", "Population Under 18 Years by Age: In households: 9 to 11 years", "Population Under 18 Years by Age: In households: 12 to 14 years", "Population Under 18 Years by Age: In households: 15 to 17 years", "Population Under 18 Years by Age: In group quarters")], 
+                         stringsAsFactors = FALSE)
+
+popunder5_df <- select(popunder5_df, 1:6)
+rownames(popunder5_df)<-1:nrow(popunder5_df)
+names(popunder5_df)<-c("GEOID", "totalpopunder", "totpopunderhouse", "under3", "threeand4", "fiveyears")
+popunder5_df$totalunder5 <- (100* (popunder5_df$under3 + popunder5_df$threeand4 + popunder5_df$fiveyears)/(pop_df$total))
+
+##time to merge
+
+popunder5_merged<- geo_join(schooldistrictunified, popunder5_df, "GEOID", "GEOID", how="inner")
+# we need to only include the salt lake county ids
+popunder5_merged <- popunder5_merged[popunder5_merged$GEOID %in% c(4900870, 4900420, 4900360, 4900142, 4900600),]
+# there are some tracts with no land that we should exclude
+# pop_merged <- pop_merged[pop_merged$ALAND>0,]
+
+##pop up makes the box when you click on a specific region, so you can label it with a name or geoid, or something else in your data
+popup <- paste0("<b>", popunder5_merged$NAME, "<br></b>", "Percent of Population Under 5: ", round(popunder5_merged$totalunder5,2))
+pal <- colorNumeric(
+  palette = "YlGnBu",
+  domain = popunder5_merged$totalunder5
+)
+
+map1<-leaflet(qualaddress) %>%
+  addMarkers(~long, ~lat, popup = ~as.character(Program.Name), label = ~as.character(Program.Name)) %>% 
+  addProviderTiles("CartoDB.Positron") %>%
+  addPolygons(data = popunder5_merged, 
+              fillColor = ~pal(totalunder5), 
+              color = "#b2aeae", # you need to use hex colors
+              fillOpacity = 0.7, 
+              weight = 1, 
+              smoothFactor = 0.2,
+              popup = popup) %>%
+  addLegend(pal = pal, 
+            values = popunder5_merged$totalunder5, 
+            position = "bottomright", 
+            title = "Percent of Population Under 5",
+            labFormat = labelFormat(suffix = "%")
+           ) 
+map1
+
+```
+
+
+```{r population 3&4, echo=FALSE, message=FALSE, warning=FALSE}
+
+
+under3 <- acs.fetch(endyear = 2015, span = 5, geography = geo, 
+                     table.number = "B09001", col.names = "pretty")
+
+#names(attributes(under3))
+# [1] "endyear"        "span"           "acs.units"      "currency.year"  "modified"       "geography"      "acs.colnames"  
+# [8] "estimate"       "standard.error" "class"    
+
+#attr(under3, "acs.colnames")
+
+#convert to data.frame for merging
+popunder5_df <- data.frame(paste0(str_pad(under3@geography$state, 2, "left", pad="0"), 
+                                #str_pad(population@geography$county, 3, "left", pad = "0"), 
+                                str_pad(under3@geography$schooldistrictunified, 5, "left", pad = "0")), 
+                         under3@estimate[,c("Population Under 18 Years by Age: Total:", "Population Under 18 Years by Age: In households:", "Population Under 18 Years by Age: In households: Under 3 years", "Population Under 18 Years by Age: In households: 3 and 4 years", "Population Under 18 Years by Age: In households: 5 years", "Population Under 18 Years by Age: In households: 6 to 8 years", "Population Under 18 Years by Age: In households: 9 to 11 years", "Population Under 18 Years by Age: In households: 12 to 14 years", "Population Under 18 Years by Age: In households: 15 to 17 years", "Population Under 18 Years by Age: In group quarters")], 
+                         stringsAsFactors = FALSE)
+
+popunder5_df <- select(popunder5_df, 1:6)
+rownames(popunder5_df)<-1:nrow(popunder5_df)
+names(popunder5_df)<-c("GEOID", "totalpopunder", "totpopunderhouse", "under3", "threeand4", "fiveyears")
+
+##time to merge
+
+popunder5_merged<- geo_join(schooldistrictunified, popunder5_df, "GEOID", "GEOID", how="inner")
+# we need to only include the salt lake county ids
+popunder5_merged <- popunder5_merged[popunder5_merged$GEOID %in% c(4900870, 4900420, 4900360, 4900142, 4900600),]
+# there are some tracts with no land that we should exclude
+# pop_merged <- pop_merged[pop_merged$ALAND>0,]
+
+##pop up makes the box when you click on a specific region, so you can label it with a name or geoid, or something else in your data
+popup <- paste0("<b>", popunder5_merged$NAME, "</b><br>", "Total Population of 3 and 4 Year Olds: ", prettyNum(round(popunder5_merged$threeand4,2), big.mark=","))
+pal <- colorNumeric(
+  palette = "YlGnBu",
+  domain = popunder5_merged$threeand4
+)
+
+map4<-leaflet(qualaddress) %>%
+  addMarkers(~long, ~lat, popup = ~as.character(Program.Name), label = ~as.character(Program.Name)) %>% 
+  addProviderTiles("CartoDB.Positron") %>%
+  addPolygons(data = popunder5_merged, 
+              fillColor = ~pal(threeand4), 
+              color = "#b2aeae", # you need to use hex colors
+              fillOpacity = 0.7, 
+              weight = 1, 
+              smoothFactor = 0.2,
+              popup = popup) %>%
+  addLegend(pal = pal, 
+            values = popunder5_merged$threeand4, 
+            position = "bottomright", 
+            title = "Total Population 3 & 4 Year Olds"#,
+            #labFormat = labelFormat(prefix = " ")
+           ) 
+map4
+
+```
+
+```{r percent population 3&4, echo=FALSE, message=FALSE, warning=FALSE}
+
+
+under3 <- acs.fetch(endyear = 2015, span = 5, geography = geo, 
+                     table.number = "B09001", col.names = "pretty")
+
+#names(attributes(under3))
+# [1] "endyear"        "span"           "acs.units"      "currency.year"  "modified"       "geography"      "acs.colnames"  
+# [8] "estimate"       "standard.error" "class"    
+
+#attr(under3, "acs.colnames")
+
+#convert to data.frame for merging
+popunder5_df <- data.frame(paste0(str_pad(under3@geography$state, 2, "left", pad="0"), 
+                                #str_pad(population@geography$county, 3, "left", pad = "0"), 
+                                str_pad(under3@geography$schooldistrictunified, 5, "left", pad = "0")), 
+                         under3@estimate[,c("Population Under 18 Years by Age: Total:", "Population Under 18 Years by Age: In households:", "Population Under 18 Years by Age: In households: Under 3 years", "Population Under 18 Years by Age: In households: 3 and 4 years", "Population Under 18 Years by Age: In households: 5 years", "Population Under 18 Years by Age: In households: 6 to 8 years", "Population Under 18 Years by Age: In households: 9 to 11 years", "Population Under 18 Years by Age: In households: 12 to 14 years", "Population Under 18 Years by Age: In households: 15 to 17 years", "Population Under 18 Years by Age: In group quarters")], 
+                         stringsAsFactors = FALSE)
+
+popunder5_df <- select(popunder5_df, 1:6)
+rownames(popunder5_df)<-1:nrow(popunder5_df)
+names(popunder5_df)<-c("GEOID", "totalpopunder", "totpopunderhouse", "under3", "threeand4", "fiveyears")
+popunder5_df$percent <- (100* (popunder5_df$threeand4/pop_df$totalpop))
+
+##time to merge
+
+popunder5_merged<- geo_join(schooldistrictunified, popunder5_df, "GEOID", "GEOID", how="inner")
+# we need to only include the salt lake county ids
+popunder5_merged <- popunder5_merged[popunder5_merged$GEOID %in% c(4900870, 4900420, 4900360, 4900142, 4900600),]
+# there are some tracts with no land that we should exclude
+# pop_merged <- pop_merged[pop_merged$ALAND>0,]
+
+##pop up makes the box when you click on a specific region, so you can label it with a name or geoid, or something else in your data
+popup <- paste0("<b>", popunder5_merged$NAME, "</b><br>", "Percent of Population 3 and 4 Years Old: ", prettyNum(round(popunder5_merged$percent,2), big.mark=","))
+pal <- colorNumeric(
+  palette = "YlGnBu",
+  domain = popunder5_merged$percent
+)
+
+map5<-leaflet(qualaddress) %>%
+  addMarkers(~long, ~lat, popup = ~as.character(Program.Name), label = ~as.character(Program.Name)) %>% 
+  addProviderTiles("CartoDB.Positron") %>%
+  addPolygons(data = popunder5_merged, 
+              fillColor = ~pal(percent), 
+              color = "#b2aeae", # you need to use hex colors
+              fillOpacity = 0.7, 
+              weight = 1, 
+              smoothFactor = 0.2,
+              popup = popup) %>%
+  addLegend(pal = pal, 
+            values = popunder5_merged$percent, 
+            position = "bottomright", 
+            title = "Percent of Population 3 & 4 Years Old",
+            labFormat = labelFormat(suffix = "%")
+           ) 
+map5
+
+```
+
+```{r median income, echo=FALSE, message=FALSE, warning=FALSE}
+
+
+income <- acs.fetch(endyear = 2015, span = 5, geography = geo, 
+                     table.number = "B19013", col.names = "pretty")
+
+#names(attributes(income))
+# [1] "endyear"        "span"           "acs.units"      "currency.year"  "modified"       "geography"      "acs.colnames"  
+# [8] "estimate"       "standard.error" "class"    
+
+#attr(income, "acs.colnames")
+
+#convert to data.frame for merging
+income_df <- data.frame(paste0(str_pad(income@geography$state, 2, "left", pad="0"), 
+                                #str_pad(population@geography$county, 3, "left", pad = "0"), 
+                                str_pad(income@geography$schooldistrictunified, 5, "left", pad = "0")), 
+                         income@estimate[,c("B19013. Median Household Income in the Past 12 Months (in 2015 Inflation-Adjusted Dollars): Median household income in the past 12 months (in 2015 Inflation-adjusted dollars)")],
+                         stringsAsFactors = FALSE)
+
+income_df <- select(income_df, 1:2)
+rownames(income_df)<-1:nrow(income_df)
+names(income_df)<-c("GEOID", "medianincome")
+#income_df$percent <- (100* (popunder5_df$threeand4/pop_df$totalpop))
+
+##time to merge
+
+income_merged<- geo_join(schooldistrictunified, income_df, "GEOID", "GEOID", how="inner")
+# we need to only include the salt lake county ids
+income_merged <- income_merged[income_merged$GEOID %in% c(4900870, 4900420, 4900360, 4900142, 4900600),]
+# there are some tracts with no land that we should exclude
+# pop_merged <- pop_merged[pop_merged$ALAND>0,]
+
+##pop up makes the box when you click on a specific region, so you can label it with a name or geoid, or something else in your data
+popup <- paste0("<b>", income_merged$NAME, "</b><br>", "Median Household Income: ", prettyNum(round(income_merged$medianincome,2), big.mark=","))
+pal <- colorNumeric(
+  palette = "YlGnBu",
+  domain = income_merged$medianincome
+)
+
+map6 <- leaflet(qualaddress) %>%
+  addMarkers(~long, ~lat, popup = ~as.character(Program.Name), label = ~as.character(Program.Name)) %>% 
+  addProviderTiles("CartoDB.Positron") %>%
+  addPolygons(data = income_merged, 
+              fillColor = ~pal(medianincome), 
+              color = "#b2aeae", # you need to use hex colors
+              fillOpacity = 0.7, 
+              weight = 1, 
+              smoothFactor = 0.2,
+              popup = popup) %>%
+  addLegend(pal = pal, 
+            values = income_merged$medianincome, 
+            position = "bottomright", 
+            title = "Median Household Income"#,
+            #labFormat = labelFormat(suffix = "%")
+           ) 
+map6
+
+```
+
+```{r white people, echo=FALSE, message=FALSE, warning=FALSE}
+
+
+race <- acs.fetch(endyear = 2015, span = 1, geography = geo,
+                     table.number = "C03002", col.names = "pretty")
+
+#names(attributes(race))
+# [1] "endyear"        "span"           "acs.units"      "currency.year"  "modified"       "geography"      "acs.colnames"
+# [8] "estimate"       "standard.error" "class"
+
+#attr(race, "acs.colnames")
+
+#convert to data.frame for merging
+race_df <- data.frame(paste0(str_pad(race@geography$state, 2, "left", pad="0"),
+                                #str_pad(population@geography$county, 3, "left", pad = "0"),
+                                str_pad(race@geography$schooldistrictunified, 5, "left", pad = "0")),
+                         race@estimate[,c("Hispanic or Latino by Race: Total:", "Hispanic or Latino by Race: Not Hispanic or Latino: White alone", "Hispanic or Latino by Race: Hispanic or Latino")],
+                         stringsAsFactors = FALSE)
+
+race_df <- select(race_df, 1:4)
+rownames(race_df)<-1:nrow(race_df)
+names(race_df)<-c("GEOID", "totalpop", "whitealone", "latino")
+race_df$percent <- (100* (race_df$whitealone/race_df$totalpop))
+
+##time to merge
+
+race_merged<- geo_join(schooldistrictunified, race_df, "GEOID", "GEOID", how="inner")
+# we need to only include the salt lake county ids
+race_merged <- race_merged[race_merged$GEOID %in% c(4900870, 4900420, 4900360, 4900142, 4900600),]
+# there are some tracts with no land that we should exclude
+# pop_merged <- pop_merged[pop_merged$ALAND>0,]
+
+##pop up makes the box when you click on a specific region, so you can label it with a name or geoid, or something else in your data
+popup <- paste0("<b>", race_merged$NAME, "</b><br>", "Percent White (Alone): ", prettyNum(round(race_merged$percent,2), big.mark=","))
+pal <- colorNumeric(
+  palette = "YlGnBu",
+  domain = race_merged$percent
+)
+
+map7<-leaflet(qualaddress) %>%
+  addMarkers(~long, ~lat, popup = ~as.character(Program.Name), label = ~as.character(Program.Name)) %>% 
+  addProviderTiles("CartoDB.Positron") %>%
+  addPolygons(data = race_merged,
+              fillColor = ~pal(percent),
+              color = "#b2aeae", # you need to use hex colors
+              fillOpacity = 0.7,
+              weight = 1,
+              smoothFactor = 0.2,
+              popup = popup) %>%
+  addLegend(pal = pal,
+            values = race_merged$percent,
+            position = "bottomright",
+            title = "Percent White Alone",
+            labFormat = labelFormat(suffix = "%")
+           )
+map7
+
+```
+
+```{r hispanic/latino people, echo=FALSE, message=FALSE, warning=FALSE}
+
+
+race <- acs.fetch(endyear = 2015, span = 1, geography = geo,
+                     table.number = "C03002", col.names = "pretty")
+
+#names(attributes(race))
+# [1] "endyear"        "span"           "acs.units"      "currency.year"  "modified"       "geography"      "acs.colnames"
+# [8] "estimate"       "standard.error" "class"
+
+#attr(race, "acs.colnames")
+
+#convert to data.frame for merging
+race_df <- data.frame(paste0(str_pad(race@geography$state, 2, "left", pad="0"),
+                                #str_pad(population@geography$county, 3, "left", pad = "0"),
+                                str_pad(race@geography$schooldistrictunified, 5, "left", pad = "0")),
+                         race@estimate[,c("Hispanic or Latino by Race: Total:", "Hispanic or Latino by Race: Not Hispanic or Latino: White alone", "Hispanic or Latino by Race: Hispanic or Latino")],
+                         stringsAsFactors = FALSE)
+
+race_df <- select(race_df, 1:4)
+rownames(race_df)<-1:nrow(race_df)
+names(race_df)<-c("GEOID", "totalpop", "whitealone", "latino")
+race_df$percent <- (100* (race_df$latino/race_df$totalpop))
+
+##time to merge
+
+race_merged<- geo_join(schooldistrictunified, race_df, "GEOID", "GEOID", how="inner")
+# we need to only include the salt lake county ids
+race_merged <- race_merged[race_merged$GEOID %in% c(4900870, 4900420, 4900360, 4900142, 4900600),]
+# there are some tracts with no land that we should exclude
+# pop_merged <- pop_merged[pop_merged$ALAND>0,]
+
+##pop up makes the box when you click on a specific region, so you can label it with a name or geoid, or something else in your data
+popup <- paste0("<b>", race_merged$NAME, "</b><br>", "Percent Hispanic/Latino: ", prettyNum(round(race_merged$percent,2), big.mark=","))
+pal <- colorNumeric(
+  palette = "YlGnBu",
+  domain = race_merged$percent
+)
+
+map8<-leaflet(qualaddress) %>%
+  addMarkers(~long, ~lat, popup = ~as.character(Program.Name), label = ~as.character(Program.Name)) %>% 
+  addProviderTiles("CartoDB.Positron") %>%
+  addPolygons(data = race_merged,
+              fillColor = ~pal(percent),
+              color = "#b2aeae", # you need to use hex colors
+              fillOpacity = 0.7,
+              weight = 1,
+              smoothFactor = 0.2,
+              popup = popup) %>%
+  addLegend(pal = pal,
+            values = race_merged$percent,
+            position = "bottomright",
+            title = "Percent Hispanic/Latino",
+            labFormat = labelFormat(suffix = "%")
+           )
+map8
+
+```
+
+```{r, echo=FALSE}
+
+# map9<-leaflet(origAddress) %>%
+#   addMarkers(~long, ~lat, popup = ~as.character(Business), label = ~as.character(Business)) %>% 
+#   addProviderTiles("CartoDB.Positron") 
+# 
+# map9
+
+```
+
+```{r foreign born, echo=FALSE}
+
+foreign <- acs.fetch(endyear = 2015, span = 1, geography = geo,
+                     table.number = "B05012", col.names = "pretty")
+
+#names(attributes(race))
+# [1] "endyear"        "span"           "acs.units"      "currency.year"  "modified"       "geography"      "acs.colnames"
+# [8] "estimate"       "standard.error" "class"
+
+attr(foreign, "acs.colnames")
+
+#convert to data.frame for merging
+foreign_df <- data.frame(paste0(str_pad(foreign@geography$state, 2, "left", pad="0"),
+                                #str_pad(population@geography$county, 3, "left", pad = "0"),
+                                str_pad(foreign@geography$schooldistrictunified, 5, "left", pad = "0")),
+                         foreign@estimate[,c("Nativity in the United States: Total:", "Nativity in the United States: Native", "Nativity in the United States: Foreign-Born")],
+                         stringsAsFactors = FALSE)
+
+foreign_df <- select(foreign_df, 1:4)
+rownames(foreign_df)<-1:nrow(foreign_df)
+names(foreign_df)<-c("GEOID", "totalpop", "native", "foreign")
+foreign_df$foreignpercent <- (100* (foreign_df$foreign/foreign_df$totalpop))
+
+##time to merge
+
+foreign_merged<- geo_join(schooldistrictunified, foreign_df, "GEOID", "GEOID", how="inner")
+# we need to only include the salt lake county ids
+foreign_merged <- foreign_merged[foreign_merged$GEOID %in% c(4900870, 4900420, 4900360, 4900142, 4900600),]
+# there are some tracts with no land that we should exclude
+# pop_merged <- pop_merged[pop_merged$ALAND>0,]
+
+##pop up makes the box when you click on a specific region, so you can label it with a name or geoid, or something else in your data
+popup <- paste0("<b>", foreign_merged$NAME, "</b><br>", "Percent Foreign Born: ", prettyNum(round(foreign_merged$foreignpercent,2), big.mark=","))
+pal <- colorNumeric(
+  palette = "YlGnBu",
+  domain = foreign_merged$foreignpercent
+)
+
+map11<-leaflet(qualaddress) %>%
+  addMarkers(~long, ~lat, popup = ~as.character(Program.Name), label = ~as.character(Program.Name)) %>% 
+  addProviderTiles("CartoDB.Positron") %>%
+  addPolygons(data = foreign_merged,
+              fillColor = ~pal(foreignpercent),
+              color = "#b2aeae", # you need to use hex colors
+              fillOpacity = 0.7,
+              weight = 1,
+              smoothFactor = 0.2,
+              popup = popup) %>%
+  addLegend(pal = pal,
+            values = foreign_merged$foreignpercent,
+            position = "bottomright",
+            title = "Percent Foreign Born",
+            labFormat = labelFormat(suffix = "%")
+           )
+map11
+
+```
+
+```{r percent not foreign born, echo=FALSE}
+
+foreign_df$nativepercent <- (100* (foreign_df$native/foreign_df$totalpop))
+
+##time to merge
+
+foreign_merged<- geo_join(schooldistrictunified, foreign_df, "GEOID", "GEOID", how="inner")
+# we need to only include the salt lake county ids
+foreign_merged <- foreign_merged[foreign_merged$GEOID %in% c(4900870, 4900420, 4900360, 4900142, 4900600),]
+# there are some tracts with no land that we should exclude
+# pop_merged <- pop_merged[pop_merged$ALAND>0,]
+
+##pop up makes the box when you click on a specific region, so you can label it with a name or geoid, or something else in your data
+popup <- paste0("<b>", foreign_merged$NAME, "</b><br>", "Percent Native Born: ", prettyNum(round(foreign_merged$nativepercent,2), big.mark=","))
+pal <- colorNumeric(
+  palette = "YlGnBu",
+  domain = foreign_merged$nativepercent
+)
+
+map12<-leaflet(qualaddress) %>%
+  addMarkers(~long, ~lat, popup = ~as.character(Program.Name), label = ~as.character(Program.Name)) %>% 
+  addProviderTiles("CartoDB.Positron") %>%
+  addPolygons(data = foreign_merged,
+              fillColor = ~pal(nativepercent),
+              color = "#b2aeae", # you need to use hex colors
+              fillOpacity = 0.7,
+              weight = 1,
+              smoothFactor = 0.2,
+              popup = popup) %>%
+  addLegend(pal = pal,
+            values = foreign_merged$nativepercent,
+            position = "bottomright",
+            title = "Percent Native Born",
+            labFormat = labelFormat(suffix = "%")
+           )
+map12
+
+
+```
+
+```{r, echo=FALSE}
+
+single <- acs.fetch(endyear = 2015, span = 1, geography = geo,
+                     table.number = "C11013", col.names = "pretty")
+
+#names(attributes(race))
+# [1] "endyear"        "span"           "acs.units"      "currency.year"  "modified"       "geography"      "acs.colnames"
+# [8] "estimate"       "standard.error" "class"
+
+attr(single, "acs.colnames")
+
+#convert to data.frame for merging
+single_df <- data.frame(paste0(str_pad(single@geography$state, 2, "left", pad="0"),
+                                #str_pad(population@geography$county, 3, "left", pad = "0"),
+                                str_pad(single@geography$schooldistrictunified, 5, "left", pad = "0")),
+                         single@estimate[,c("SUBFAMILY TYPE: Total:", "SUBFAMILY TYPE: Married-couple subfamily", "SUBFAMILY TYPE: Single-parent subfamily")],
+                         stringsAsFactors = FALSE)
+
+single_df <- select(single_df, 1:4)
+rownames(single_df)<-1:nrow(single_df)
+names(single_df)<-c("GEOID", "totalpop", "married", "single")
+single_df$marriedpercent <- (100* (single_df$married/single_df$totalpop))
+
+##time to merge
+
+single_merged<- geo_join(schooldistrictunified, single_df, "GEOID", "GEOID", how="inner")
+# we need to only include the salt lake county ids
+single_merged <- single_merged[single_merged$GEOID %in% c(4900870, 4900420, 4900360, 4900142, 4900600),]
+# there are some tracts with no land that we should exclude
+# pop_merged <- pop_merged[pop_merged$ALAND>0,]
+
+##pop up makes the box when you click on a specific region, so you can label it with a name or geoid, or something else in your data
+popup <- paste0("<b>", single_merged$NAME, "</b><br>", "Percent Family Type Married: ", prettyNum(round(single_merged$marriedpercent,2), big.mark=","))
+pal <- colorNumeric(
+  palette = "YlGnBu",
+  domain = single_merged$marriedpercent
+)
+
+map13<-leaflet(qualaddress) %>%
+  addMarkers(~long, ~lat, popup = ~as.character(Program.Name), label = ~as.character(Program.Name)) %>% 
+  addProviderTiles("CartoDB.Positron") %>%
+  addPolygons(data = single_merged,
+              fillColor = ~pal(marriedpercent),
+              color = "#b2aeae", # you need to use hex colors
+              fillOpacity = 0.7,
+              weight = 1,
+              smoothFactor = 0.2,
+              popup = popup) %>%
+  addLegend(pal = pal,
+            values = single_merged$marriedpercent,
+            position = "bottomright",
+            title = "Percent Family Type Married",
+            labFormat = labelFormat(suffix = "%")
+           )
+map13
+
+
+```
+
+```{r, echo=FALSE}
+single_df$singlepercent <- (100* (single_df$single/single_df$totalpop))
+
+##time to merge
+
+single_merged<- geo_join(schooldistrictunified, single_df, "GEOID", "GEOID", how="inner")
+# we need to only include the salt lake county ids
+single_merged <- single_merged[single_merged$GEOID %in% c(4900870, 4900420, 4900360, 4900142, 4900600),]
+# there are some tracts with no land that we should exclude
+# pop_merged <- pop_merged[pop_merged$ALAND>0,]
+
+##pop up makes the box when you click on a specific region, so you can label it with a name or geoid, or something else in your data
+popup <- paste0("<b>", single_merged$NAME, "</b><br>", "Percent Family Type Single: ", prettyNum(round(single_merged$singlepercent,2), big.mark=","))
+pal <- colorNumeric(
+  palette = "YlGnBu",
+  domain = single_merged$singlepercent
+)
+
+map14<-leaflet(qualaddress) %>%
+  addMarkers(~long, ~lat, popup = ~as.character(Program.Name), label = ~as.character(Program.Name)) %>% 
+  addProviderTiles("CartoDB.Positron") %>%
+  addPolygons(data = single_merged,
+              fillColor = ~pal(singlepercent),
+              color = "#b2aeae", # you need to use hex colors
+              fillOpacity = 0.7,
+              weight = 1,
+              smoothFactor = 0.2,
+              popup = popup) %>%
+  addLegend(pal = pal,
+            values = single_merged$singlepercent,
+            position = "bottomright",
+            title = "Percent Family Type Single",
+            labFormat = labelFormat(suffix = "%")
+           )
+map14
+
+
+
+```
