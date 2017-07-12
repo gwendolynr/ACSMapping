@@ -15,6 +15,7 @@ library(leaflet)
 library(ggplot2)
 library(tidyr)
 library(ggmap)
+library(spatialEco)
 
 knitr::opts_chunk$set(echo = FALSE)
 knitr::opts_chunk$set(cache = FALSE)
@@ -36,56 +37,33 @@ knitr::opts_knit$set(root.dir = '~/Google Drive/SI/DataScience/SLCPreschoolStudy
 
 ```{r importing the addresses, echo=FALSE}
 
-origAddress <- read.csv("./raw_data/ProviderAddress.csv", stringsAsFactors = FALSE)
+# origAddress <- read.csv("./raw_data/ProviderAddress.csv", stringsAsFactors = FALSE)
+# 
+# ## format the address so the streets are with the city and state
+# 
+# origAddress <- origAddress %>%
+#   unite(addresses, Address, City, State, sep = ", ")
+# 
+# # Initialize the data frame
+# geocoded <- data.frame(stringAsFactors = FALSE)
+# 
+# ##have to trim the white space because there is something funky going on when i read in the csv file. FUCK!
+# origAddress <- origAddress %>%
+#  mutate(addresses = trimws(addresses)) %>% 
+#  mutate_geocode(addresses) 
+# 
+# origAddress <- origAddress %>%
+#   select(Business, addresses, Zip.Code, Care.Type, lon, lat)
+# 
+# origAddress <- origAddress %>%
+#   mutate(Business = ifelse(Business=="", Care.Type, Business))
+# 
+# origAddress <- origAddress %>%
+#   rename(long = lon)
+# 
+# write.csv(origAddress, "./raw_data/latlongaddress.csv")
 
-## format the address so the streets are with the city and state
-
-
-origAddress <- origAddress %>%
-  unite(addresses, Address, City, State, sep = ", ")
-
-# Initialize the data frame
-geocoded <- data.frame(stringAsFactors = FALSE)
-
-origAddress <- origAddress %>% 
-  filter(addresses!="3472 S Hedon Place, West Valley City, Utah") %>% 
-  filter(addresses!="350 400 E, Salt Lake City, Utah") %>% 
-  filter(addresses!="6229 S Fashion Blvd Rear, Murray, Utah") %>% 
-  filter(addresses!="13671 Times Court, Herriman, Utah") %>% 
-  filter(addresses!="4399 500 E, Salt Lake City, Utah")
-
-# Loop through the addresses to get the latitude and longitude of each address and add it to the
-# origAddress data frame in new columns lat and lon
-
-geocode(origAddress$addresses, output ="latlona", source = "google")
-
-origAddress <- origAddress %>%  mutate_geocode(addresses) 
-
-for(i in 1:nrow(origAddress))
-{
-  #print("working..")
-  result <- geocode(origAddress$addresses[i], output = "latlona", source = "google")
-  origAddress$lon[i] <- as.numeric(result[1])
-  origAddress$lat[i] <- as.numeric(result[2])
-  origAddress$geoAddress[i] <- as.character(result[3])
-}
-#
-# origAddress %>%
-#   filter(is.na(lat)) %>%
-#   tally()
-#
-origAddress <- origAddress %>%
-  select(Business, addresses, Zip.Code, Care.Type, lon, lat, geoAddress)
-
-origAddress <- origAddress %>%
-  mutate(Business = ifelse(Business=="", Care.Type, Business))
-
-origAddress <- origAddress %>%
-  rename(long = lon)
-
-write.csv(origAddress, "./latlongaddress.csv")
-
-origAddress <- read.csv("./raw_data/latlongaddress.csv", stringsAsFactors = FALSE)
+origAddress <- read.csv("./latlongaddress.csv", stringsAsFactors = FALSE)
 
 ```
 
@@ -138,6 +116,64 @@ origAddress <- read.csv("./raw_data/latlongaddress.csv", stringsAsFactors = FALS
 
 ```
 
+```{r map head start, echo=FALSE}
+
+headstart <- read.csv("./raw_data/HeadStartUtah.csv", stringsAsFactors = FALSE)
+
+headstart <- headstart %>% 
+  rename(long = longitude) %>% 
+  rename(lat = latitude)
+
+
+map20<-leaflet(headstart) %>%
+  addMarkers(~long, ~lat, popup = ~as.character(name), label = ~as.character(name)) %>% 
+  addProviderTiles("CartoDB.Positron") 
+
+map20
+
+```
+
+```{r subsidies by provider and child, echo=FALSE}
+
+subsidy<- read.csv("./latlongaddress.csv", stringsAsFactors = FALSE)
+
+# subsidy <- subsidy %>% 
+#   mutate(City = trimws(City)) %>%
+#   mutate(City = str_replace(City, "  ", " ")) %>% 
+#   mutate(City = str_replace(City, "JODAN", "JORDAN")) %>% 
+#   mutate(City = str_replace(City, "SOUTH SALT LAKE CITY", "SOUTH SALT LAKE")) %>% 
+#   mutate(City = toupper(City))  
+  
+# test <- subsidy %>% 
+#   group_by(City) %>% 
+#   summarize(total = sum(Subsidized.Amt, na.rm=TRUE))
+# 
+#  test <- test %>% 
+#    filter(total!= 0) %>% 
+#    mutate(state = "UTAH") %>% 
+#    unite(address, City, state, sep= ", ")
+#  
+#  write.csv(test, "./raw_data/cities.csv")
+
+ # test <- test %>%
+ #  mutate(address = trimws(address)) %>% 
+ #  mutate_geocode(address)
+ 
+subsidy <- subsidy %>% 
+  na.exclude(Subsidized.Amt)
+ 
+ subsidypoints <- subsidy %>% 
+   select(lon, lat) 
+
+xy <- subsidypoints[,c(1, 2)]
+
+spdf <- SpatialPointsDataFrame(coords = xy, data = subsidypoints,
+                               proj4string = CRS("+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0"))
+
+ new_df <- point.in.poly(spdf, schooldistrictunified) 
+ 
+```
+
 ```{r}
 
 map10<-leaflet(qualaddress) %>%
@@ -147,6 +183,17 @@ map10<-leaflet(qualaddress) %>%
 map10
 
 ```
+
+```{r all childcare, echo=FALSE}
+
+map100<-leaflet(origAddress) %>%
+  addProviderTiles("CartoDB.Positron") %>% 
+  addMarkers(clusterOptions = markerClusterOptions()) 
+
+map100
+
+```
+
 
 
 ```{r}
