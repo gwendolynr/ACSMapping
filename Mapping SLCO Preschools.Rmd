@@ -17,10 +17,11 @@ library(tidyr)
 library(ggmap)
 library(spatialEco)
 
+
 knitr::opts_chunk$set(echo = FALSE)
 knitr::opts_chunk$set(cache = FALSE)
 knitr::opts_chunk$set(dpi = 150)
-knitr::opts_chunk$set(message = F) #Use this to suppress all messages from chunks for finalized report
+knitr::opts_chunk$set(message = T) #Use this to suppress all messages from chunks for finalized report
 knitr::opts_chunk$set(warning = T) #Use this to suppress all warnings from chunks for finalized report
 
 # Sorenson Impact colors we use in ggplot
@@ -116,6 +117,9 @@ origAddress <- read.csv("./latlongaddress.csv", stringsAsFactors = FALSE)
 
 ```
 
+## Head Start Locations in Utah
+The map below shows all Head Start locations in the state of Utah. 
+
 ```{r map head start, echo=FALSE}
 
 headstart <- read.csv("./raw_data/HeadStartUtah.csv", stringsAsFactors = FALSE)
@@ -133,46 +137,8 @@ map20
 
 ```
 
-```{r subsidies by provider and child, echo=FALSE}
-
-subsidy<- read.csv("./latlongaddress.csv", stringsAsFactors = FALSE)
-
-# subsidy <- subsidy %>% 
-#   mutate(City = trimws(City)) %>%
-#   mutate(City = str_replace(City, "  ", " ")) %>% 
-#   mutate(City = str_replace(City, "JODAN", "JORDAN")) %>% 
-#   mutate(City = str_replace(City, "SOUTH SALT LAKE CITY", "SOUTH SALT LAKE")) %>% 
-#   mutate(City = toupper(City))  
-  
-# test <- subsidy %>% 
-#   group_by(City) %>% 
-#   summarize(total = sum(Subsidized.Amt, na.rm=TRUE))
-# 
-#  test <- test %>% 
-#    filter(total!= 0) %>% 
-#    mutate(state = "UTAH") %>% 
-#    unite(address, City, state, sep= ", ")
-#  
-#  write.csv(test, "./raw_data/cities.csv")
-
- # test <- test %>%
- #  mutate(address = trimws(address)) %>% 
- #  mutate_geocode(address)
- 
-subsidy <- subsidy %>% 
-  na.exclude(Subsidized.Amt)
- 
- subsidypoints <- subsidy %>% 
-   select(lon, lat) 
-
-xy <- subsidypoints[,c(1, 2)]
-
-spdf <- SpatialPointsDataFrame(coords = xy, data = subsidypoints,
-                               proj4string = CRS("+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0"))
-
- new_df <- point.in.poly(spdf, schooldistrictunified) 
- 
-```
+## NAEYC Certified Preschools
+The map below shows all NAEYC Certified preschools in the state of Utah. They are predominantly located in the Salt Lake valley. 
 
 ```{r}
 
@@ -184,7 +150,10 @@ map10
 
 ```
 
-```{r all childcare, echo=FALSE}
+## All Childcare Providers From Website
+The following map shows all of the childcare providers listed at the website: 
+
+```{r all childcare, echo=FALSE, warning=FALSE, message=FALSE}
 
 map100<-leaflet(origAddress) %>%
   addProviderTiles("CartoDB.Positron") %>% 
@@ -196,7 +165,7 @@ map100
 
 
 
-```{r}
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
 
 ##must find the fips number for the counties i am including. i only want to include sl county and i want to map by school district 
 
@@ -204,7 +173,8 @@ counties <- c(035)
 schooldistrictunified <- school_districts(state = 'UT', type = "unified")
 ```
 
-
+## Total Population in SLCO School Districts
+We are able to use the American Community Survey, which is run by the United States Census Bureau, to map the total population in Salt Lake County School Districts. The ACS was last updated in 2015, so population counts are as of 2015. We then overlay the NAEYC certified preschools on top of total population. 
 
 ```{r get tabular data, echo=FALSE, message=FALSE, warning=FALSE}
 
@@ -273,6 +243,9 @@ map3
 
 ```
 
+## Total Population Under 5 Years Old in SLCO School Districts
+We use the same ACS data (from 2015) to map the total population of children under 5 years old in the Salt Lake County School Districts. 
+
 ```{r population under 3, echo=FALSE, message=FALSE, warning=FALSE}
 
 
@@ -331,6 +304,9 @@ map2<-leaflet(qualaddress) %>%
 map2
 
 ```
+
+## Percent of Population Under 5 Years Old in SLCO School Districts
+We use the same ACS data (from 2015) to map the percent of the total population that are children under 5 years old in the Salt Lake County School Districts. 
 
 ```{r percent of population under 3, echo=FALSE, message=FALSE, warning=FALSE}
 
@@ -391,6 +367,8 @@ map1
 
 ```
 
+## Total Population of 3 and 4 Year Olds in SLCO School Districts
+We then zero in specifically on 3 and 4 year olds in Salt Lake County School Districts.
 
 ```{r population 3&4, echo=FALSE, message=FALSE, warning=FALSE}
 
@@ -449,6 +427,9 @@ map4<-leaflet(qualaddress) %>%
 map4
 
 ```
+
+## Percent of Population that's 3 and 4 Years Old in SLCO School Districts
+We then map the percent of the total population that are 3 and 4 years old in Salt Lake County School Districts.
 
 ```{r percent population 3&4, echo=FALSE, message=FALSE, warning=FALSE}
 
@@ -509,6 +490,107 @@ map5
 
 ```
 
+## Childcare Subsidies in Salt Lake County School Districts
+We used the data we received on childcare to map the total amount of childcare subsidies given by Salt Lake County School Districts.  
+
+```{r subsidies by provider and child, echo=FALSE}
+
+# subsidy<- read.csv("./latlongaddress.csv", stringsAsFactors = FALSE)
+# 
+# subsidy <- subsidy %>% 
+#   na.exclude(Subsidized.Amt)
+#  
+#  subsidypoints <- subsidy %>% 
+#    select(lon, lat) 
+# 
+# xy <- subsidypoints[,c(1, 2)]
+# 
+# spdf <- SpatialPointsDataFrame(coords = xy, data = subsidypoints,
+#                                proj4string = CRS("+proj=longlat +datum=NAD83 +no_defs +ellps=GRS80 +towgs84=0,0,0 "))
+# 
+#  new_df <- sp::over(spdf, schooldistrictunified) 
+#  
+#  subsidy$district <- new_df$NAME
+#  subsidy$GEOID <- new_df$GEOID
+# 
+# districtsubsidy <-  subsidy %>% 
+#   group_by(GEOID, district) %>% 
+#   summarize(totalsubsidy = sum(Subsidized.Amt, na.rm=TRUE))
+# 
+# write.csv(districtsubsidy, "./districtsubsidy.csv")
+
+districtsubsidy <- read.csv("~/Github/ACSMapping/districtsubsidy.csv", stringsAsFactors = FALSE)
+   
+subsidy_merged<- geo_join(schooldistrictunified, districtsubsidy, "GEOID", "GEOID", how="inner")
+# we need to only include the salt lake county ids
+subsidy_merged <- subsidy_merged[subsidy_merged$GEOID %in% c(4900870, 4900420, 4900360, 4900142, 4900600),]
+# there are some tracts with no land that we should exclude
+# pop_merged <- pop_merged[pop_merged$ALAND>0,]
+
+##pop up makes the box when you click on a specific region, so you can label it with a name or geoid, or something else in your data
+popup <- paste0("<b>", subsidy_merged$NAME, "</b><br>", "Total Childcare Subsidy by District: ", prettyNum(round(subsidy_merged$totalsubsidy,2), big.mark=","))
+pal <- colorNumeric(
+  palette = "YlGnBu",
+  domain = subsidy_merged$totalsubsidy
+)
+
+map33<-leaflet() %>%
+  addProviderTiles("CartoDB.Positron") %>%
+  addPolygons(data = subsidy_merged, 
+              fillColor = ~pal(totalsubsidy), 
+              color = "#b2aeae", # you need to use hex colors
+              fillOpacity = 0.7, 
+              weight = 1, 
+              smoothFactor = 0.2,
+              popup = popup) %>%
+  addLegend(pal = pal, 
+            values = subsidy_merged$totalsubsidy, 
+            position = "bottomright", 
+            title = "Total Childcare Subsidy by District"#,
+            #labFormat = labelFormat(prefix = " ")
+           ) 
+map33
+
+```
+
+## Childcare Subsidies in Salt Lake County School Districts Per Child Under 5
+We used the data we received on childcare to map the amount of childcare subsidies per child under 5 in Salt Lake County School Districts.  
+
+```{r subsidies by child, echo=FALSE}
+
+
+subsidy_merged$percent <- (subsidy_merged$totalsubsidy/(popunder5_merged$under3 + popunder5_merged$threeand4 + popunder5_merged$fiveyears))
+
+##pop up makes the box when you click on a specific region, so you can label it with a name or geoid, or something else in your data
+popup <- paste0("<b>", subsidy_merged$NAME, "</b><br>", "Childcare Subsidy Per Population Under 5: ", prettyNum(round(subsidy_merged$percent,2), big.mark=","))
+pal <- colorNumeric(
+  palette = "YlGnBu",
+  domain = subsidy_merged$percent
+)
+
+map37<-leaflet() %>%
+  addProviderTiles("CartoDB.Positron") %>%
+  addPolygons(data = subsidy_merged, 
+              fillColor = ~pal(percent), 
+              color = "#b2aeae", # you need to use hex colors
+              fillOpacity = 0.7, 
+              weight = 1, 
+              smoothFactor = 0.2,
+              popup = popup) %>%
+  addLegend(pal = pal, 
+            values = subsidy_merged$percent, 
+            position = "bottomright", 
+            title = "Childcare Subsidy Per Population Under 5"#,
+            #labFormat = labelFormat(prefix = "%")
+           ) 
+map37
+
+```
+
+## Median Household Income in Salt Lake County School Districts 
+We used ACS data (from 2015) to map the median household income for each Salt Lake County school district.  
+
+
 ```{r median income, echo=FALSE, message=FALSE, warning=FALSE}
 
 
@@ -567,6 +649,9 @@ map6 <- leaflet(qualaddress) %>%
 map6
 
 ```
+
+## Race: White Alone in Salt Lake County School Districts 
+We used ACS data (from 2015) to map the percent of people who marked their race/ethnicty as White: Alone for each Salt Lake County school district. 
 
 ```{r white people, echo=FALSE, message=FALSE, warning=FALSE}
 
@@ -627,6 +712,10 @@ map7
 
 ```
 
+## Race: Hispanic/Latino in Salt Lake County School Districts 
+We used ACS data (from 2015) to map the percent of people who marked their race/ethnicty as Hispanci/Latino for each Salt Lake County school district. 
+
+
 ```{r hispanic/latino people, echo=FALSE, message=FALSE, warning=FALSE}
 
 
@@ -686,15 +775,9 @@ map8
 
 ```
 
-```{r, echo=FALSE}
 
-# map9<-leaflet(origAddress) %>%
-#   addMarkers(~long, ~lat, popup = ~as.character(Business), label = ~as.character(Business)) %>% 
-#   addProviderTiles("CartoDB.Positron") 
-# 
-# map9
-
-```
+## Foreign Born in Salt Lake County School Districts 
+We used ACS data (from 2015) to map the percent of people who are foreign born (as opposed to native born) for each Salt Lake County school district. 
 
 ```{r foreign born, echo=FALSE}
 
@@ -705,7 +788,7 @@ foreign <- acs.fetch(endyear = 2015, span = 1, geography = geo,
 # [1] "endyear"        "span"           "acs.units"      "currency.year"  "modified"       "geography"      "acs.colnames"
 # [8] "estimate"       "standard.error" "class"
 
-attr(foreign, "acs.colnames")
+#attr(foreign, "acs.colnames")
 
 #convert to data.frame for merging
 foreign_df <- data.frame(paste0(str_pad(foreign@geography$state, 2, "left", pad="0"),
@@ -754,6 +837,9 @@ map11
 
 ```
 
+## Native Born in Salt Lake County School Districts 
+We used ACS data (from 2015) to map the percent of people who are native born (as opposed to foreign born) for each Salt Lake County school district. 
+
 ```{r percent not foreign born, echo=FALSE}
 
 foreign_df$nativepercent <- (100* (foreign_df$native/foreign_df$totalpop))
@@ -794,27 +880,30 @@ map12
 
 ```
 
-```{r married families, echo=FALSE}
+## Percent of Married Families in Salt Lake County School Districts 
+We used ACS data (from 2015) to map the percent of families with married heads of households for each Salt Lake County school district. 
+
+```{r married families, echo=FALSE, message=FALSE}
 
 single <- acs.fetch(endyear = 2015, span = 1, geography = geo,
-                     table.number = "C11013", col.names = "pretty")
+                     table.number = "B09005", col.names = "pretty")
 
 #names(attributes(race))
 # [1] "endyear"        "span"           "acs.units"      "currency.year"  "modified"       "geography"      "acs.colnames"
 # [8] "estimate"       "standard.error" "class"
 
-attr(single, "acs.colnames")
+#attr(single, "acs.colnames")
 
 #convert to data.frame for merging
 single_df <- data.frame(paste0(str_pad(single@geography$state, 2, "left", pad="0"),
                                 #str_pad(population@geography$county, 3, "left", pad = "0"),
                                 str_pad(single@geography$schooldistrictunified, 5, "left", pad = "0")),
-                         single@estimate[,c("SUBFAMILY TYPE: Total:", "SUBFAMILY TYPE: Married-couple subfamily", "SUBFAMILY TYPE: Single-parent subfamily")],
+                         single@estimate[,c("Household Type for Children Under 18 Years in Households (Excluding Householders, Spouses, and Unmarried Partners): Total:", "Household Type for Children Under 18 Years in Households (Excluding Householders, Spouses, and Unmarried Partners): In family households: In married-couple family", "Household Type for Children Under 18 Years in Households (Excluding Householders, Spouses, and Unmarried Partners): In family households: In male householder, no wife present, family", "Household Type for Children Under 18 Years in Households (Excluding Householders, Spouses, and Unmarried Partners): In family households: In female householder, no husband present, family")],
                          stringsAsFactors = FALSE)
 
-single_df <- select(single_df, 1:4)
+single_df <- select(single_df, 1:5)
 rownames(single_df)<-1:nrow(single_df)
-names(single_df)<-c("GEOID", "totalpop", "married", "single")
+names(single_df)<-c("GEOID", "totalpop", "married", "singlemale", "singlefemale")
 single_df$marriedpercent <- (100* (single_df$married/single_df$totalpop))
 
 ##time to merge
@@ -853,8 +942,11 @@ map13
 
 ```
 
+## Percent of Single Families in Salt Lake County School Districts 
+We used ACS data (from 2015) to map the percent of families with single heads of households for each Salt Lake County school district. 
+
 ```{r single families, echo=FALSE}
-single_df$singlepercent <- (100* (single_df$single/single_df$totalpop))
+single_df$singlepercent <- (100* ((single_df$singlemale + single_df$singlefemale)/single_df$totalpop))
 
 ##time to merge
 
@@ -893,6 +985,9 @@ map14
 
 ```
 
+## Percent Unemployed in Salt Lake County School Districts 
+We used ACS data (from 2015) to map the percent of people unemployed for each Salt Lake County school district. 
+
 ```{r unemployment, echo=FALSE}
 
 unemployment <- acs.fetch(endyear = 2015, span = 1, geography = geo,
@@ -902,7 +997,7 @@ unemployment <- acs.fetch(endyear = 2015, span = 1, geography = geo,
 # [1] "endyear"        "span"           "acs.units"      "currency.year"  "modified"       "geography"      "acs.colnames"
 # [8] "estimate"       "standard.error" "class"
 
-attr(unemployment, "acs.colnames")
+#attr(unemployment, "acs.colnames")
 
 #convert to data.frame for merging
 unemploy_df <- data.frame(paste0(str_pad(unemployment@geography$state, 2, "left", pad="0"),
@@ -952,7 +1047,10 @@ map16
 
 ```
 
-```{r bachelor's degree, echo=FALSE}
+## Percent with a Bachelor's Degree and Above in Salt Lake County School Districts 
+We used ACS data (from 2015) to map the percent of people with at least a bachelor's degree for each Salt Lake County school district. 
+
+```{r bachelors degree, echo=FALSE}
 
 bachelor <- acs.fetch(endyear = 2015, span = 1, geography = geo,
                      table.number = "C15003", col.names = "pretty")
@@ -961,7 +1059,7 @@ bachelor <- acs.fetch(endyear = 2015, span = 1, geography = geo,
 # [1] "endyear"        "span"           "acs.units"      "currency.year"  "modified"       "geography"      "acs.colnames"
 # [8] "estimate"       "standard.error" "class"
 
-attr(bachelor, "acs.colnames")
+#attr(bachelor, "acs.colnames")
 
 #convert to data.frame for merging
 bach_df <- data.frame(paste0(str_pad(bachelor@geography$state, 2, "left", pad="0"),
@@ -1011,6 +1109,9 @@ map17
 
 ```
 
+## Percent of Preschoolers Who Went to Public Preschool in Salt Lake County School Districts 
+We used ACS data (from 2015) to map the percent of preschoolers who went to public preschool for each Salt Lake County school district. 
+
 ```{r public school, echo=FALSE}
 
 preschool <- acs.fetch(endyear = 2015, span = 1, geography = geo,
@@ -1020,7 +1121,7 @@ preschool <- acs.fetch(endyear = 2015, span = 1, geography = geo,
 # [1] "endyear"        "span"           "acs.units"      "currency.year"  "modified"       "geography"      "acs.colnames"
 # [8] "estimate"       "standard.error" "class"
 
-attr(preschool, "acs.colnames")
+#attr(preschool, "acs.colnames")
 
 #convert to data.frame for merging
 preschool_df <- data.frame(paste0(str_pad(preschool@geography$state, 2, "left", pad="0"),
@@ -1070,6 +1171,9 @@ map18
 
 ```
 
+## Percent of Preschoolers Who Went to Private Preschool in Salt Lake County School Districts 
+We used ACS data (from 2015) to map the percent of preschoolers who went to private preschool for each Salt Lake County school district. 
+
 ```{r private preschool, echo=FALSE}
 
 preschool_df$percent <- (100* ((preschool_df$private)/preschool_df$totalpop))
@@ -1110,6 +1214,9 @@ map19
 
 ```
 
+## Percent of Families Under the Poverty Line  
+We used ACS data (from 2015) to map the percent of under the poverty line for each Salt Lake County school district. 
+
 ```{r poverty level, echo=FALSE}
 
 poverty <- acs.fetch(endyear = 2015, span = 1, geography = geo,
@@ -1119,7 +1226,7 @@ poverty <- acs.fetch(endyear = 2015, span = 1, geography = geo,
 # [1] "endyear"        "span"           "acs.units"      "currency.year"  "modified"       "geography"      "acs.colnames"
 # [8] "estimate"       "standard.error" "class"
 
-attr(poverty, "acs.colnames")
+#attr(poverty, "acs.colnames")
 
 #convert to data.frame for merging
 poverty_df <- data.frame(paste0(str_pad(poverty@geography$state, 2, "left", pad="0"),
