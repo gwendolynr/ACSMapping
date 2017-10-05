@@ -38,7 +38,7 @@ knitr::opts_knit$set(root.dir = '~/Google Drive/SI/DataScience/SLCPreschoolStudy
 
 ```{r importing the addresses, echo=FALSE}
 
-# origAddress <- read.csv("./raw_data/ProviderAddress.csv", stringsAsFactors = FALSE)
+ origAddress <- read.csv("./raw_data/ProviderAddress.csv", stringsAsFactors = FALSE)
 # 
 # ## format the address so the streets are with the city and state
 # 
